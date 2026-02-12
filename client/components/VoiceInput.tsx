@@ -130,6 +130,12 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
 
   }, []);
 
+  // Mobile detection standard
+  const isMobileDevice = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  
+  // Throttling ref
+  const lastTranscriptUpdate = useRef(0);
+
   const startRecognition = useCallback(() => {
     if (!SpeechRecognitionAPI) return;
     if (recognitionRef.current) return;
@@ -138,7 +144,10 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
         const recognition = new SpeechRecognitionAPI();
         recognition.lang = "ar-JO";
         recognition.continuous = false; // Force single-shot for stability
-        recognition.interimResults = false; // Strictly no interim for clean data
+        recognition.interimResults = !isMobileDevice; // Disable interim on mobile to save resources? 
+                                                      // User asked for "Use throttling for updating transcript... do not call setState with ever interim result".
+                                                      // So we CAN use interim but throttle the state update.
+        recognition.interimResults = true; // Use interim for feedback, but throttle the UI update
         recognition.maxAlternatives = 1; // Only top result
 
         recognition.onresult = (event: any) => {
@@ -147,27 +156,33 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
             const res = event.results[0];
             const transcript = res[0].transcript;
             const confidence = res[0].confidence;
+            const isFinal = res.isFinal;
 
             // Mobile-Specific Enhancements
-            if (isMobile) {
+            if (isMobileDevice) {
                 // Higher confidence threshold for mobile
-                if (confidence < 0.8) {
+                if (isFinal && confidence < 0.8) {
                      console.warn("Mobile: Low confidence ignored:", transcript, confidence);
                      return;
                 }
                 
-                // Prevent duplicate processing of the exact same string sequence within a short window
-                // (Already handled in processText, but good to block here too for commands)
-                if (lastProcessedTextsRef.current.includes(cleanArabicTranscript(transcript).trim())) {
-                     console.log("Mobile: Duplicate ignored");
+                // Prevent duplicate processing
+                if (isFinal && lastProcessedTextsRef.current.includes(cleanArabicTranscript(transcript).trim())) {
                      return;
                 }
+
+                // Throttling UI updates for interim results
+                const now = Date.now();
+                if (!isFinal && now - lastTranscriptUpdate.current < 250) {
+                    return; // Skip this frame
+                }
+                lastTranscriptUpdate.current = now;
             } else {
                 // Desktop strict confidence
-                if (confidence < 0.75) return;
+                if (isFinal && confidence < 0.75) return;
             }
 
-            // Keyword Detection for Navigation
+            // Keyword Detection
             const isCommand = /^(انتهى|انتها|خلص|تم|التالي|كمل)$/i.test(transcript.trim());
             const hasCommandSuffix = /(انتهى|انتها|خلص|تم|التالي|كمل)$/i.test(transcript.trim());
 
@@ -182,9 +197,11 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
                 shouldAdvance = true;
             }
 
-            if (finalText || shouldAdvance) {
-                setLiveTranscript(finalText || "Done");
-                setTimeout(() => setLiveTranscript(""), 800);
+            // Update UI
+            setLiveTranscript(finalText || "Done");
+            
+            if (isFinal && (finalText || shouldAdvance)) {
+                 setTimeout(() => setLiveTranscript(""), 800);
 
                 let payLoad = finalText;
                 if (shouldAdvance) {
@@ -194,8 +211,8 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
                 processText(payLoad);
                 
                 // Mobile: Force stop to prevent double-firing
-                if (isMobile && recognitionRef.current) {
-                    recognitionRef.current.stop(); 
+                if (isMobileDevice && recognitionRef.current) {
+                    try { recognitionRef.current.stop(); } catch(e) {}
                 }
             }
         };
@@ -206,18 +223,19 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
                 setIsListening(false);
                 isListeningRef.current = false;
             } else if (event.error !== 'no-speech') {
-                // Ignore no-speech, let auto-restart handle it
                 console.warn("Speech Error:", event.error);
             }
         };
 
         recognition.onend = () => {
+             // Mobile: Avoid rapid restart loop if it was just stopped manually
+             const delay = isMobileDevice ? 150 : 50;
+            
             recognitionRef.current = null;
             if (isListeningRef.current) {
-                // Immediate restart
                 restartTimeoutRef.current = setTimeout(() => {
                     startRecognition();
-                }, 50);
+                }, delay);
             }
         };
 

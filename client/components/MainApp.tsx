@@ -210,29 +210,34 @@ export function MainApp() {
     },
   ];
 
+  // Check mobile for visual optimizations
+  const isMobileDevice = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
   return (
-    <div className="min-h-screen bg-background bg-pattern-islamic relative overflow-hidden">
+    <div className={`min-h-screen bg-background relative overflow-hidden ${isMobileDevice ? 'bg-pattern-islamic-mobile' : 'bg-pattern-islamic'}`}>
       {/* --- ADDED: System Status Indicator --- */}
       {systemStatus && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] px-6 py-2 bg-foreground/90 text-background rounded-full text-sm font-bold shadow-2xl border border-white/20 backdrop-blur-md animate-in fade-in slide-in-from-top-4">
+        <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] px-6 py-2 bg-foreground/90 text-background rounded-full text-sm font-bold shadow-2xl border border-white/20 animate-in fade-in slide-in-from-top-4 ${!isMobileDevice && 'backdrop-blur-md'}`}>
           {systemStatus}
         </div>
       )}
       {/* -------------------------------------- */}
 
-      {/* Background decorations */}
-      <div className="absolute inset-0 pointer-events-none">
-        <motion.div 
-          className="absolute top-0 left-1/4 w-72 sm:w-96 h-72 sm:h-96 bg-accent/5 rounded-full blur-3xl"
-          animate={{ x: [0, 20, 0], y: [0, -10, 0] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div 
-          className="absolute bottom-1/4 right-1/4 w-64 sm:w-80 h-64 sm:h-80 bg-primary/5 rounded-full blur-3xl"
-          animate={{ x: [0, -15, 0], y: [0, 15, 0] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-        />
-      </div>
+      {/* Background decorations - Reduced on mobile */}
+      {!isMobileDevice && (
+        <div className="absolute inset-0 pointer-events-none">
+            <motion.div 
+            className="absolute top-0 left-1/4 w-72 sm:w-96 h-72 sm:h-96 bg-accent/5 rounded-full blur-3xl"
+            animate={{ x: [0, 20, 0], y: [0, -10, 0] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <motion.div 
+            className="absolute bottom-1/4 right-1/4 w-64 sm:w-80 h-64 sm:h-80 bg-primary/5 rounded-full blur-3xl"
+            animate={{ x: [0, -15, 0], y: [0, 15, 0] }}
+            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+            />
+        </div>
+      )}
 
       <div className="container max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-8 relative z-10">
         <Header />
@@ -245,10 +250,12 @@ export function MainApp() {
             transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
             className="relative"
           >
-            {/* Card glow effect */}
-            <div className="absolute -inset-0.5 sm:-inset-1 bg-gradient-to-r from-accent/15 via-primary/10 to-accent/15 rounded-2xl sm:rounded-3xl blur-lg sm:blur-xl opacity-60" />
+            {/* Card glow effect - Desktop only */}
+            {!isMobileDevice && (
+                <div className="absolute -inset-0.5 sm:-inset-1 bg-gradient-to-r from-accent/15 via-primary/10 to-accent/15 rounded-2xl sm:rounded-3xl blur-lg sm:blur-xl opacity-60" />
+            )}
             
-            <div className="relative bg-card/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-premium border border-border/40 overflow-hidden">
+            <div className={`relative bg-card/95 rounded-2xl sm:rounded-3xl border border-border/40 overflow-hidden ${isMobileDevice ? 'shadow-md' : 'shadow-premium backdrop-blur-sm'}`}>
               {/* Top accent line */}
               <div className="h-1 sm:h-1.5 bg-gradient-to-r from-primary via-accent to-primary" />
               

@@ -28,24 +28,40 @@ export function useNotebookProcessor() {
       // Remove data URL prefix if present
       const imageBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
 
-      // Call production backend API
-      const response = await fetch('https://scanforquran-1.onrender.com/api/process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          studentName,
-          extractedData: [], // For image processing, we might need OCR logic server-side or client-side. 
-                             // Wait, the original code sent imageBase64 to edge function which presumably did OCR.
-                             // The user request said "Preserve... Text parsing logic". 
-                             // If the original used GPT-4o or similar via edge function, I cannot reproduce that easily without an API key for OpenAI.
-                             // However, for VOICE input, we have text already.
-                             // Let's assume for now we are fixing the backend connection. 
-                             // If passing image, we send imageBase64.
-          imageBase64
-        }),
-      });
+      // Check mobile
+      const isMobileDevice = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+      let response: Response;
+      
+      if (isMobileDevice) {
+         // Non-blocking fetch for mobile
+         response = await new Promise(resolve => {
+            setTimeout(async () => {
+                resolve(await fetch('https://scanforquran-1.onrender.com/api/process', {
+                    method: 'POST',
+                    headers: {
+                    'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                    studentName,
+                    imageBase64
+                    }),
+                }));
+            }, 0);
+         });
+      } else {
+         // Standard fetch for desktop
+         response = await fetch('https://scanforquran-1.onrender.com/api/process', {
+            method: 'POST',
+            headers: {
+            'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+            studentName,
+            imageBase64
+            }),
+         });
+      }
 
       const data = await response.json();
 
@@ -81,12 +97,7 @@ export function useNotebookProcessor() {
     setIsProcessing(true);
 
     try {
-      const response = await fetch('https://scanforquran-1.onrender.com/api/process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
+      const bodyContent = JSON.stringify({ 
           studentName, 
           extractedData: confirmedData.map(row => {
             // Cast to any[] to allow sending numbers/nulls in the JSON body
@@ -123,8 +134,29 @@ export function useNotebookProcessor() {
             return newRow;
           }),
           action: "confirm"
-        }),
-      });
+        });
+
+      // Check mobile
+      const isMobileDevice = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      let response: Response;
+
+      if (isMobileDevice) {
+         response = await new Promise(resolve => {
+            setTimeout(async () => {
+                resolve(await fetch('https://scanforquran-1.onrender.com/api/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: bodyContent
+                }));
+            }, 0);
+         });
+      } else {
+         response = await fetch('https://scanforquran-1.onrender.com/api/process', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: bodyContent
+        });
+      }
 
       const data = await response.json();
 
