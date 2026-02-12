@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FileSpreadsheet, AlertCircle, Sparkles, Zap, Shield, Clock, Camera, Mic, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
@@ -47,6 +47,19 @@ export function MainApp() {
     }
   };
   // ----------------------------------
+
+  // Check Backend Health on Mount
+  useEffect(() => {
+    console.log("Checking backend health...");
+    fetch("https://scanforquran-1.onrender.com/health")
+      .then(res => {
+        if (!res.ok) throw new Error("Health check failed: " + res.status);
+        console.log("Backend is Healthy ✅");
+      })
+      .catch(err => {
+        console.error("🚨 Backend Connection Failed:", err);
+      });
+  }, []);
 
   const { processNotebook, confirmData, isProcessing } = useNotebookProcessor();
 

@@ -81,7 +81,7 @@ export function useNotebookProcessor() {
     setIsProcessing(true);
 
     try {
-      const response = await fetch('http://localhost:3000/api/process', {
+      const response = await fetch('https://scanforquran-1.onrender.com/api/process', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
