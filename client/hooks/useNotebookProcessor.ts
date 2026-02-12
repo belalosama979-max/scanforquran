@@ -28,8 +28,8 @@ export function useNotebookProcessor() {
       // Remove data URL prefix if present
       const imageBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
 
-      // Call local backend API instead of Supabase Edge Function
-      const response = await fetch('http://localhost:3000/api/process', {
+      // Call production backend API
+      const response = await fetch('https://scanforquran-1.onrender.com/api/process', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

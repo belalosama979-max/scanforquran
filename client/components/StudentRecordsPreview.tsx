@@ -42,7 +42,7 @@ export function StudentRecordsPreview({ studentName }: StudentRecordsPreviewProp
     setError(null);
     
     try {
-      const response = await fetch(`http://localhost:3000/api/student-records/${encodeURIComponent(studentName)}`);
+      const response = await fetch(`https://scanforquran-1.onrender.com/api/student-records/${encodeURIComponent(studentName)}`);
       const data = await response.json();
 
       if (!data.success) {
