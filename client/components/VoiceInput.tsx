@@ -135,21 +135,45 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
   
   // Throttling ref
   const lastTranscriptUpdate = useRef(0);
+  const recognitionInstanceRef = useRef<any>(null);
+
+  // Initialize Recognition Instance Once (Mobile Optimized)
+  useEffect(() => {
+    if (!SpeechRecognitionAPI) return;
+
+    // Create instance once
+    const recognition = new SpeechRecognitionAPI();
+    recognition.lang = "ar-JO";
+    recognition.continuous = false; 
+    recognition.interimResults = true; 
+    recognition.maxAlternatives = 1;
+
+    recognitionInstanceRef.current = recognition;
+
+    return () => {
+        try { recognition.abort(); } catch(e) {}
+        recognitionInstanceRef.current = null;
+    };
+  }, [SpeechRecognitionAPI]);
 
   const startRecognition = useCallback(() => {
     if (!SpeechRecognitionAPI) return;
-    if (recognitionRef.current) return;
+    
+    // Reuse instance or create (fallback)
+    let recognition = recognitionInstanceRef.current;
+    if (!recognition) {
+        recognition = new SpeechRecognitionAPI();
+        recognition.lang = "ar-JO";
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+        recognitionInstanceRef.current = recognition;
+    }
 
     try {
-        const recognition = new SpeechRecognitionAPI();
-        recognition.lang = "ar-JO";
-        recognition.continuous = false; // Force single-shot for stability
-        recognition.interimResults = !isMobileDevice; // Disable interim on mobile to save resources? 
-                                                      // User asked for "Use throttling for updating transcript... do not call setState with ever interim result".
-                                                      // So we CAN use interim but throttle the state update.
-        recognition.interimResults = true; // Use interim for feedback, but throttle the UI update
-        recognition.maxAlternatives = 1; // Only top result
-
+        // Event Handlers (Attached fresh to capture latest closures if needed, 
+        // strictly usage of refs recommended for deps)
+        
         recognition.onresult = (event: any) => {
             if (!event.results || event.results.length === 0) return;
 
@@ -161,7 +185,7 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
             // Mobile-Specific Enhancements
             if (isMobileDevice) {
                 // Higher confidence threshold for mobile
-                if (isFinal && confidence < 0.8) {
+                if (isFinal && confidence < 0.75) { // Adjusted to 0.75 for balance
                      console.warn("Mobile: Low confidence ignored:", transcript, confidence);
                      return;
                 }
@@ -171,9 +195,9 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
                      return;
                 }
 
-                // Throttling UI updates for interim results
+                // Throttling UI updates for interim results (300ms)
                 const now = Date.now();
-                if (!isFinal && now - lastTranscriptUpdate.current < 250) {
+                if (!isFinal && now - lastTranscriptUpdate.current < 300) {
                     return; // Skip this frame
                 }
                 lastTranscriptUpdate.current = now;
@@ -201,6 +225,10 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
             setLiveTranscript(finalText || "Done");
             
             if (isFinal && (finalText || shouldAdvance)) {
+                 // Prevent double firing
+                 if (recognition.processingFinal) return;
+                 recognition.processingFinal = true;
+
                  setTimeout(() => setLiveTranscript(""), 800);
 
                 let payLoad = finalText;
@@ -210,9 +238,12 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
                 
                 processText(payLoad);
                 
+                // Reset flag after short delay
+                setTimeout(() => { recognition.processingFinal = false; }, 500);
+
                 // Mobile: Force stop to prevent double-firing
-                if (isMobileDevice && recognitionRef.current) {
-                    try { recognitionRef.current.stop(); } catch(e) {}
+                if (isMobileDevice) {
+                    try { recognition.stop(); } catch(e) {}
                 }
             }
         };
@@ -228,10 +259,9 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
         };
 
         recognition.onend = () => {
-             // Mobile: Avoid rapid restart loop if it was just stopped manually
-             const delay = isMobileDevice ? 150 : 50;
+             // Mobile: Avoid rapid restart loop
+             const delay = isMobileDevice ? 200 : 50;
             
-            recognitionRef.current = null;
             if (isListeningRef.current) {
                 restartTimeoutRef.current = setTimeout(() => {
                     startRecognition();
@@ -239,7 +269,6 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
             }
         };
 
-        recognitionRef.current = recognition;
         recognition.start();
 
     } catch (e) {
@@ -247,7 +276,7 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
         setIsListening(false);
         isListeningRef.current = false;
     }
-  }, [SpeechRecognitionAPI, processText]);
+  }, [SpeechRecognitionAPI, processText, isMobileDevice]);
 
   const startListening = useCallback(() => {
     if (!supported) {
@@ -274,12 +303,9 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
         restartTimeoutRef.current = null;
     }
     
-    if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch(e) {}
-        // Don't nullify here immediately, let onend handle it or force it?
-        // standard pattern:
-        // recognitionRef.current.abort(); 
-        recognitionRef.current = null; 
+    const recognition = recognitionInstanceRef.current || recognitionRef.current;
+    if (recognition) {
+        try { recognition.stop(); } catch(e) {}
     }
     setLiveTranscript("");
   }, []);
@@ -340,8 +366,8 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
 
   return (
     <div className="space-y-5">
-      {/* Microphone Button */}
-      <div className="flex flex-col items-center gap-3">
+      {/* Microphone Button - Mobile Optimized */}
+      <div className={`flex flex-col items-center gap-3 ${isMobileDevice ? 'fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 bg-background/90 p-4 rounded-3xl shadow-2xl border border-primary/20 backdrop-blur-md w-[90%] max-w-sm' : ''}`}>
         <motion.button
           whileTap={{ scale: 0.92 }}
           whileHover={{ scale: 1.05 }}
@@ -380,6 +406,9 @@ export function VoiceInput({ onDataReady, onStatusChange }: VoiceInputProps) {
           </p>
         </div>
       </div>
+      
+      {/* Spacer for Mobile to prevent content hiding behind fixed mic */}
+      {isMobileDevice && <div className="h-40" />}
 
       {/* Error */}
       <AnimatePresence>

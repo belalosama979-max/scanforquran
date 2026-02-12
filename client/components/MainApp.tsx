@@ -239,7 +239,7 @@ export function MainApp() {
         </div>
       )}
 
-      <div className="container max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-8 relative z-10">
+      <div className={`container max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-8 relative z-10 ${isMobileDevice ? 'pb-48' : ''}`}>
         <Header />
 
         <main className="mt-6 sm:mt-10 space-y-5 sm:space-y-8">
